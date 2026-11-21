@@ -1,3 +1,4 @@
+
 name: Build DJ HOOSHANG V5.2 APK
 
 on:
@@ -5,20 +6,33 @@ on:
   push:
     branches:
       - main
-      - master
-
-permissions:
-  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download Project
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Java 17
+      - name: Extract Android Project
+        run: |
+          unzip -o DJ_HOOSHANG_V5_2_Source-1.zip -d extracted
+          echo "Extracted files:"
+          find extracted -maxdepth 4 -type f | head -100
+
+      - name: Find Android Project
+        run: |
+          SETTINGS=$(find extracted -type f \( -name settings.gradle -o -name settings.gradle.kts \) | head -1)
+          if [ -z "$SETTINGS" ]; then
+            echo "ERROR: settings.gradle not found inside ZIP"
+            exit 1
+          fi
+          PROJECT_DIR=$(dirname "$SETTINGS")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+          echo "Project found: $PROJECT_DIR"
+
+      - name: Setup JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -26,33 +40,15 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.7'
-
-      - name: Find Android Project
-        id: project
-        shell: bash
-        run: |
-          if [ -f "settings.gradle" ] || [ -f "settings.gradle.kts" ]; then
-            echo "dir=." >> "$GITHUB_OUTPUT"
-          elif [ -f "DJ_HOOSHANG_V5_2_Source-1/settings.gradle" ] || [ -f "DJ_HOOSHANG_V5_2_Source-1/settings.gradle.kts" ]; then
-            echo "dir=DJ_HOOSHANG_V5_2_Source-1" >> "$GITHUB_OUTPUT"
-          else
-            echo "ERROR: settings.gradle was not found."
-            echo "Files in repository:"
-            ls -la
-            exit 1
-          fi
 
       - name: Build APK
         run: |
-          cd "${{ steps.project.outputs.dir }}"
+          cd "$PROJECT_DIR"
           gradle assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: DJ-HOOSHANG-V5.2-APK
-          path: ${{ steps.project.outputs.dir }}/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          name: DJ-HOOSHANG-APK
+          path: extracted/**/build/outputs/apk/debug/*.apk
           
